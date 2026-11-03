@@ -82,6 +82,9 @@ El sistema trabaja con dos conjuntos de datos complementarios:
 
 ### B. Corpus de manuales técnicos oficiales (PDFs)
 * **Fuente:** Manuales de usuario oficiales descargados de sitios de soporte de fabricantes (ASUS, MSI, Gigabyte, Corsair, NZXT, Cooler Master).
+* **Política de versionado en Git vs. Almacenamiento a escala:**
+  * **Alcance del MVP:** Se incluye únicamente el manual de muestra de la placa madre (`E21902_TUF_GAMING_B650-PLUS_WIFI_UM_V3_WEB.pdf`, 3.2 MB) dentro del repositorio para garantizar que cualquier miembro del equipo o evaluador pueda clonar y ejecutar el pipeline inmediatamente.
+  * **Escala y producción:** En un escenario real con cientos o miles de manuales técnicos (gigabytes de información), **los archivos `.pdf` nunca se suben a Git** (bloqueados en `.gitignore`). Se almacenan en almacenamiento de objetos en la nube (ej. AWS S3, Google Cloud Storage) o en un volumen local, descargándose mediante scripts de ingestión automatizados.
 * **Procesamiento:**
   * Extracción de texto mediante `pypdf`.
   * *Chunking* (segmentación) en fragmentos semánticos (300-600 palabras) etiquetados con metadatos (`componente`, `tipo`, `seccion`).

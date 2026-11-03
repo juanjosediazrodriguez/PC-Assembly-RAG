@@ -15,7 +15,8 @@ data/
 │   │   ├── power-supply.csv
 │   │   └── memory.csv
 │   └── manuals_pdf/          # Manuales oficiales de fabricantes en formato PDF
-│                             # NOTA: Los archivos .pdf están ignorados en Git por tamaño
+│                             # NOTA: En escalabilidad con miles de manuales se ignoran en Git por tamaño.
+│                             # Para el MVP se incluye el manual de referencia oficial de ASUS (3.2 MB).
 ├── processed/                # Datos limpios y procesados
 │   ├── hardware_catalog.json # Catálogo normalizado para validación de compatibilidad
 │   └── manual_chunks.jsonl   # Fragmentos de texto extraídos listos para indexación

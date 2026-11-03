@@ -22,7 +22,10 @@ htmlcov/
 data/vectorstore/
 
 # Archivos pesados de datos crudos (manuales PDF)
+# En escalabilidad o produccion con miles de manuales NO se suben binarios a Git.
+# Para el MVP se habilita como excepcion el manual de referencia oficial:
 data/raw/manuals_pdf/*.pdf
+!data/raw/manuals_pdf/E21902_TUF_GAMING_B650-PLUS_WIFI_UM_V3_WEB.pdf
 !data/raw/manuals_pdf/.gitkeep
 
 # Archivos temporales o logs
