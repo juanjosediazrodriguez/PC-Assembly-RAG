@@ -26,8 +26,8 @@ Instrucciones y reglas de ingeniería para los asistentes de IA y desarrolladore
 5. **Idioma:**
    * Documentación, comentarios, nombres de variables y mensajes de commit en **español**.
    * Términos técnicos sin traducción directa aceptados en inglés (`socket`, `embedding`, `chunk`, `prompt`, `RAG`, `TDP`).
-6. **Confirmación antes de ejecutar cambios:**
-   * Antes de crear, modificar o borrar archivos significativos, o ejecutar comandos en el sistema, explicar qué se va a hacer y por qué, y esperar confirmación del usuario.
+6. **Explicación previa técnica (lenguaje natural + código):**
+   * Antes de crear, modificar o borrar archivos significativos, o ejecutar comandos en el sistema, explicar qué se va a hacer y por qué combinando **lenguaje natural y snippets de código concreto** (firmas tipadas, lógica, scripts o comandos exactos), y esperar confirmación del usuario.
 
 ---
 
@@ -72,3 +72,19 @@ PC-Assembly-RAG/
 ├── pyproject.toml            # Especificación de dependencias para uv
 └── README.md                 # Especificación académica del proyecto
 ```
+
+---
+
+## 5. Convenciones de Git y ciclo de ramas
+
+Para evitar acumulación de ramas huérfanas y mantener el historial limpio entre los 4 desarrolladores:
+
+1. **Una rama por Issue:**
+   * Nombres semánticos con prefijo: `feat/nombre-tarea`, `data/nombre-tarea`, `test/nombre-tarea`, `docs/nombre-tarea`.
+   * Ejemplo: `git checkout -b data/build-catalog` para la Issue #1.
+2. **Ningún commit directo a `main`:**
+   * Todo trabajo se envía a GitHub en su propia rama y se integra mediante un **Pull Request (PR)**.
+3. **Conservación y gestión de ramas:**
+   * Las ramas remotas en GitHub **se conservan como respaldo histórico** para poder volver a consultar código, historial o versiones anteriores si es necesario (sin borrado automático).
+   * La limpieza de ramas es manual y bajo decisión explícita, nunca automática.
+
