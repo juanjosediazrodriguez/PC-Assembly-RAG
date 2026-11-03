@@ -1,0 +1,35 @@
+# Entornos virtuales de Python
+.venv/
+venv/
+ENV/
+env/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.coverage
+htmlcov/
+
+# Variables de entorno y secretos
+.env
+.env.local
+*.key
+*.pem
+
+# Base de datos vectorial persistente (ChromaDB)
+data/vectorstore/
+
+# Archivos pesados de datos crudos (manuales PDF)
+data/raw/manuals_pdf/*.pdf
+!data/raw/manuals_pdf/.gitkeep
+
+# Archivos temporales o logs
+*.log
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
