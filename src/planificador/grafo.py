@@ -10,77 +10,77 @@ TAREAS_BASE = {
     "preparar_area": (
         "fuera_gabinete", "Preparar el área de trabajo",
         "Desconectar el equipo de la red eléctrica y preparar una superficie segura.",
-        "precauciones de seguridad para instalar componentes de PC",
+        "safety precautions before installing PC components electrostatic discharge",
     ),
     "instalar_cpu": (
         "fuera_gabinete", "Instalar el procesador",
         "Colocar el procesador en el socket correcto sin forzar los contactos.",
-        "instalación del procesador orientación socket y mecanismo de retención",
+        "CPU installation socket orientation alignment mark and retention bracket",
     ),
     "instalar_ram": (
         "fuera_gabinete", "Instalar la memoria RAM",
         "Instalar los módulos en las ranuras recomendadas para doble canal.",
-        "ranuras DIMM recomendadas configuración dual channel memoria RAM",
+        "recommended DIMM slots dual channel memory configuration",
     ),
     "instalar_almacenamiento": (
         "fuera_gabinete", "Instalar la unidad NVMe",
         "Montar la unidad M.2 en la placa antes de introducirla en el gabinete.",
-        "instalación M.2 NVMe ranura y tornillo de fijación",
+        "M.2 NVMe SSD installation slot and retention screw",
     ),
     "aplicar_pasta_termica": (
         "fuera_gabinete", "Aplicar pasta térmica",
         "Verificar si el disipador trae pasta preaplicada; si no, colocarla siguiendo las instrucciones del fabricante.",
-        "pasta térmica instrucciones del fabricante disipador",
+        "thermal paste application CPU cooler installation instructions",
     ),
     "instalar_refrigeracion": (
         "fuera_gabinete", "Instalar disipador por aire",
         "Montar el disipador y su soporte según el socket, evitando obstrucciones.",
-        "montaje de disipador por aire backplate y soporte de CPU",
+        "air CPU cooler mounting bracket backplate and CPU_FAN header",
     ),
     "preparar_gabinete": (
         "preparacion_gabinete", "Preparar el gabinete",
         "Abrir el gabinete, comprobar separadores y preparar el espacio para la placa.",
-        "preparación de gabinete separadores motherboard standoffs",
+        "chassis preparation motherboard standoffs and I/O shield",
     ),
     "instalar_fuente": (
         "preparacion_gabinete", "Instalar la fuente de poder",
         "Fijar la fuente en el gabinete, con el cable de corriente desconectado.",
-        "montaje de fuente de poder PSU orientación y tornillos",
+        "power supply PSU mounting orientation and screws",
     ),
     "montar_placa": (
         "montaje_chasis", "Montar la placa madre",
         "Fijar la placa a los separadores del gabinete sin forzar los tornillos.",
-        "montaje de placa madre en gabinete separadores tornillos",
+        "motherboard installation in chassis standoffs and screws",
     ),
     "conectar_alimentacion_placa": (
         "montaje_chasis", "Conectar alimentación de la placa",
         "Conectar los cables principales de alimentación ATX y CPU/EPS según el manual.",
-        "conectores ATX 24 pin y CPU EPS 8 pin motherboard",
+        "ATX 24-pin and CPU EPS 8-pin power connectors motherboard",
     ),
     "conectar_panel_frontal": (
         "montaje_chasis", "Conectar panel frontal",
         "Conectar botones, LEDs y puertos del gabinete siguiendo el diagrama oficial.",
-        "diagrama pines system panel header power switch reset LED F_PANEL",
+        "System Panel header pin layout power switch reset switch HDD LED PLED F_PANEL",
     ),
     "instalar_gpu": (
         "montaje_chasis", "Instalar la tarjeta gráfica",
         "Insertar la GPU en la ranura PCIe y fijarla al gabinete.",
-        "instalación GPU ranura PCI Express y soporte gabinete",
+        "graphics card installation PCIe x16 slot and bracket screws",
     ),
     "conectar_alimentacion_gpu": (
         "cableado_y_cierre", "Conectar alimentación de la GPU",
         "Conectar los cables PCIe/12VHPWR requeridos por la tarjeta gráfica, si aplica.",
-        "cable alimentación tarjeta gráfica PCIe 8 pin 12VHPWR instrucciones",
+        "graphics card power connectors PCIe 8-pin 12VHPWR cable requirements",
     ),
     "revisar_conexiones": (
         "cableado_y_cierre", "Revisar conexiones",
         "Comprobar conexiones, ventiladores, separadores y cables antes del cierre.",
-        "lista de comprobación conectores alimentación ventiladores PC",
+        "final checklist power connectors fans and front panel cables",
     ),
     "cerrar_gabinete": (
         "cableado_y_cierre", "Cerrar el gabinete",
         "Organizar los cables y volver a colocar los paneles del gabinete.",
-        "cierre del gabinete organización de cables y paneles",
+        "cable management and closing chassis side panels",
     ),
 }
 
@@ -164,14 +164,14 @@ def crear_grafo_adaptativo(config: ConfiguracionPC) -> nx.DiGraph:
             fase="preparacion_gabinete",
             titulo="Montar unidad SATA/HDD en una bahía",
             descripcion_base="Fijar la unidad en una bahía compatible del gabinete.",
-            consulta_base="montaje de unidad SATA o HDD en bahía de gabinete",
+            consulta_base="SATA drive or HDD installation in drive bay",
         )
         grafo.add_node(
             "conectar_almacenamiento_sata",
             fase="montaje_chasis",
             titulo="Conectar la unidad SATA/HDD",
             descripcion_base="Conectar datos SATA a la placa y alimentación SATA a la fuente.",
-            consulta_base="puertos SATA de placa y alimentación SATA de la fuente",
+            consulta_base="SATA ports on motherboard and SATA power connector from power supply",
         )
         grafo.add_edges_from([
             ("instalar_almacenamiento", "conectar_almacenamiento_sata"),
@@ -191,7 +191,7 @@ def crear_grafo_adaptativo(config: ConfiguracionPC) -> nx.DiGraph:
             fase="preparacion_gabinete",
             titulo="Montar radiador en el gabinete",
             descripcion_base="Fijar el radiador AIO en la posición permitida por el gabinete.",
-            consulta_base="posición orientación y montaje de radiador AIO en gabinete",
+            consulta_base="AIO radiator mounting position and orientation in chassis",
         )
         grafo.add_edges_from([
             ("preparar_gabinete", "instalar_radiador"),
@@ -205,7 +205,7 @@ def crear_grafo_adaptativo(config: ConfiguracionPC) -> nx.DiGraph:
             fase="montaje_chasis",
             titulo="Montar bloque de refrigeración líquida",
             descripcion_base="Fijar el bloque al CPU y conectar bomba y ventiladores según el fabricante.",
-            consulta_base="instalación bloque bomba AIO conectores AIO_PUMP CPU_FAN",
+            consulta_base="AIO pump block installation and AIO_PUMP CPU_FAN header connections",
         )
 
     if not nx.is_directed_acyclic_graph(grafo):
