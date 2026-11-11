@@ -60,6 +60,10 @@ class Motherboard(BaseModel):
     socket: SocketType
     size: FormFactor
     memory_type: MemoryType = Field(description="Generación de RAM soportada")
+    memory_type_confianza: Literal["alta", "media"] = Field(
+        default="alta",
+        description="Confianza del tipo de RAM: 'media' si se dedujo por marca o por socket ambiguo",
+    )
 
 class GPU(BaseModel):
     name: str

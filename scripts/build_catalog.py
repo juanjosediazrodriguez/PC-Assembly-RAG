@@ -45,6 +45,10 @@ RAM_POR_SOCKET = {
     "TRX40": "DDR4",
 }
 
+# Sockets donde la RAM deducida solo por el socket puede estar mal: LGA 1151 tiene
+# placas DDR3 cuyo nombre no lo dice. Esas placas quedan con confianza "media".
+SOCKETS_RAM_AMBIGUA = {"LGA 1151"}
+
 # Columnas que se conservan por componente y su nombre final (según docs/contratos.md)
 COLUMNAS = {
     "cpu": {
@@ -108,8 +112,13 @@ def inferir_tamano_placa(nombre: str) -> str:
 
 
 def inferir_ram_por_nombre(nombre: str) -> str | None:
-    """Busca el tipo de RAM escrito en el nombre de la placa (DDR4, D4, DDR5, D5...)."""
-    if "DDR3" in nombre:
+    """Busca el tipo de RAM escrito en el nombre de la placa (DDR3, D3, DDR4, D4, DDR5, D5...).
+
+    El sufijo "D3" solo se toma como DDR3 fuera de Gigabyte: en Gigabyte "D3" es una
+    gama de producto (Z370P D3, GA-Z270P-D3, D3H) y no indica el tipo de memoria.
+    """
+    sufijo_d3 = re.search(r"\bD3\b", nombre) and not nombre.startswith("Gigabyte")
+    if "DDR3" in nombre or sufijo_d3:
         return "DDR3"
     if "DDR4" in nombre or re.search(r"\bD4\b", nombre):
         return "DDR4"
@@ -118,21 +127,32 @@ def inferir_ram_por_nombre(nombre: str) -> str | None:
     return None
 
 
-def cargar_correcciones_ram() -> dict[str, str]:
-    """Carga el CSV de correcciones de RAM para placas LGA 1700 sin dato en el nombre."""
+def cargar_correcciones_ram() -> dict[str, tuple[str, str]]:
+    """Carga el CSV de correcciones de RAM: nombre -> (tipo de RAM, confianza)."""
     correcciones = pd.read_csv(ARCHIVO_CORRECCIONES_RAM)
-    return dict(zip(correcciones["name"], correcciones["memory_type"]))
+    return {
+        fila["name"]: (fila["memory_type"], "alta" if fila["confianza"] == "alta" else "media")
+        for _, fila in correcciones.iterrows()
+    }
 
 
-def inferir_ram_placa(nombre: str, socket: str, correcciones: dict[str, str]) -> str:
-    """Decide el tipo de RAM de una placa: nombre > correcciones > socket."""
+def inferir_ram_placa(
+    nombre: str, socket: str, correcciones: dict[str, tuple[str, str]]
+) -> tuple[str, str]:
+    """Decide el tipo de RAM de una placa y qué tan confiable es el dato.
+
+    Prioridad: nombre > correcciones > socket. Retorna (tipo, confianza), donde la
+    confianza es "alta" o "media". Es "media" cuando viene de una corrección con
+    confianza media o del socket LGA 1151, que tiene placas DDR3 sin marca en el nombre.
+    """
     por_nombre = inferir_ram_por_nombre(nombre)
     if por_nombre:
-        return por_nombre
+        return por_nombre, "alta"
     if nombre in correcciones:
         return correcciones[nombre]
     if socket in RAM_POR_SOCKET:
-        return RAM_POR_SOCKET[socket]
+        confianza = "media" if socket in SOCKETS_RAM_AMBIGUA else "alta"
+        return RAM_POR_SOCKET[socket], confianza
     raise ValueError(f"No se pudo deducir la RAM de la placa: {nombre} ({socket})")
 
 
@@ -150,9 +170,11 @@ def procesar_placas(df: pd.DataFrame) -> pd.DataFrame:
     """Aplica las correcciones de tamaño (error 1) y tipo de RAM (error 2)."""
     correcciones = cargar_correcciones_ram()
     df["size"] = df["name"].apply(inferir_tamano_placa)
-    df["memory_type"] = df.apply(
+    ram = df.apply(
         lambda fila: inferir_ram_placa(fila["name"], fila["socket"], correcciones), axis=1
     )
+    df["memory_type"] = ram.str[0]
+    df["memory_type_confianza"] = ram.str[1]
     return df
 
 
