@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "pandas>=2.2.0",
-    "pypdf>=4.0.0",
+    "pypdf[crypto]>=4.0.0",
     "chromadb>=0.5.0",
     "networkx>=3.2.0",
     "pydantic>=2.7.0",
