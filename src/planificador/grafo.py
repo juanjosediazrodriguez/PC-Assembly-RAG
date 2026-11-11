@@ -2,6 +2,8 @@
 
 import networkx as nx
 
+from src.esquemas import ConfiguracionPC, PasoEnsamble
+
 # El grafo base representa un ensamble con SSD NVMe y refrigeración por aire.
 # Cada tarea contiene: fase, título, descripción y búsqueda técnica para RAG.
 TAREAS_BASE = {
@@ -126,3 +128,116 @@ def crear_grafo_base() -> nx.DiGraph:
     if not nx.is_directed_acyclic_graph(grafo):
         raise ValueError("El grafo base contiene un ciclo de dependencias")
     return grafo
+
+# Componentes cuyos nombres contextualizan cada búsqueda en los manuales.
+COMPONENTES_POR_PASO = {
+    "preparar_area": ("case",),
+    "instalar_cpu": ("cpu", "motherboard"),
+    "instalar_ram": ("memory", "motherboard"),
+    "instalar_almacenamiento": ("storage", "motherboard", "case"),
+    "aplicar_pasta_termica": ("cpu", "cooler"),
+    "instalar_refrigeracion": ("cooler", "motherboard", "case"),
+    "preparar_gabinete": ("case",),
+    "instalar_fuente": ("psu", "case"),
+    "instalar_radiador": ("cooler", "case"),
+    "montar_placa": ("motherboard", "case"),
+    "conectar_alimentacion_placa": ("motherboard", "psu"),
+    "conectar_panel_frontal": ("motherboard", "case"),
+    "instalar_gpu": ("gpu", "motherboard", "case"),
+    "conectar_alimentacion_gpu": ("gpu", "psu"),
+    "conectar_almacenamiento_sata": ("storage", "motherboard", "psu"),
+    "revisar_conexiones": ("motherboard", "psu", "gpu"),
+    "cerrar_gabinete": ("case",),
+}
+
+
+def crear_grafo_adaptativo(config: ConfiguracionPC) -> nx.DiGraph:
+    """Ajusta el grafo base según almacenamiento y refrigeración elegidos."""
+    grafo = crear_grafo_base()
+
+    if config.storage.type in ("SATA", "HDD"):
+        # Esta unidad va en una bahía, no sobre la placa fuera del chasis.
+        grafo.remove_edge("instalar_almacenamiento", "instalar_refrigeracion")
+        grafo.remove_edge("instalar_almacenamiento", "preparar_gabinete")
+        grafo.add_edge("preparar_gabinete", "instalar_almacenamiento")
+        grafo.nodes["instalar_almacenamiento"].update(
+            fase="preparacion_gabinete",
+            titulo="Montar unidad SATA/HDD en una bahía",
+            descripcion_base="Fijar la unidad en una bahía compatible del gabinete.",
+            consulta_base="montaje de unidad SATA o HDD en bahía de gabinete",
+        )
+        grafo.add_node(
+            "conectar_almacenamiento_sata",
+            fase="montaje_chasis",
+            titulo="Conectar la unidad SATA/HDD",
+            descripcion_base="Conectar datos SATA a la placa y alimentación SATA a la fuente.",
+            consulta_base="puertos SATA de placa y alimentación SATA de la fuente",
+        )
+        grafo.add_edges_from([
+            ("instalar_almacenamiento", "conectar_almacenamiento_sata"),
+            ("montar_placa", "conectar_almacenamiento_sata"),
+            ("instalar_fuente", "conectar_almacenamiento_sata"),
+            ("conectar_almacenamiento_sata", "instalar_gpu"),
+            ("conectar_almacenamiento_sata", "revisar_conexiones"),
+        ])
+
+    if config.cooler.type == "liquid":
+        # En refrigeración líquida, primero se prepara el chasis y se monta
+        # el radiador; el bloque se instala tras fijar la placa madre.
+        grafo.remove_edge("instalar_refrigeracion", "preparar_gabinete")
+        grafo.remove_edge("instalar_refrigeracion", "montar_placa")
+        grafo.add_node(
+            "instalar_radiador",
+            fase="preparacion_gabinete",
+            titulo="Montar radiador en el gabinete",
+            descripcion_base="Fijar el radiador AIO en la posición permitida por el gabinete.",
+            consulta_base="posición orientación y montaje de radiador AIO en gabinete",
+        )
+        grafo.add_edges_from([
+            ("preparar_gabinete", "instalar_radiador"),
+            ("instalar_radiador", "montar_placa"),
+            ("montar_placa", "aplicar_pasta_termica"),
+            ("instalar_radiador", "instalar_refrigeracion"),
+            ("instalar_refrigeracion", "conectar_alimentacion_placa"),
+        ])
+        grafo.nodes["aplicar_pasta_termica"]["fase"] = "montaje_chasis"
+        grafo.nodes["instalar_refrigeracion"].update(
+            fase="montaje_chasis",
+            titulo="Montar bloque de refrigeración líquida",
+            descripcion_base="Fijar el bloque al CPU y conectar bomba y ventiladores según el fabricante.",
+            consulta_base="instalación bloque bomba AIO conectores AIO_PUMP CPU_FAN",
+        )
+
+    if not nx.is_directed_acyclic_graph(grafo):
+        raise ValueError("La configuración generó un ciclo de dependencias")
+    return grafo
+
+
+def generar_plan_ensamble(config: ConfiguracionPC) -> list[PasoEnsamble]:
+    """Ordena el DAG y devuelve pasos compatibles con el contrato Pydantic."""
+    grafo = crear_grafo_adaptativo(config)
+    orden_topologico = list(nx.topological_sort(grafo))
+    posiciones = {id_paso: i for i, id_paso in enumerate(orden_topologico)}
+    plan = []
+
+    for numero, id_paso in enumerate(orden_topologico, start=1):
+        datos = grafo.nodes[id_paso]
+        componentes = [
+            getattr(config, campo).name
+            for campo in COMPONENTES_POR_PASO[id_paso]
+        ]
+        dependencias = sorted(
+            grafo.predecessors(id_paso), key=posiciones.__getitem__
+        )
+        plan.append(PasoEnsamble(
+            orden=numero,
+            id_paso=id_paso,
+            fase=datos["fase"],
+            titulo=datos["titulo"],
+            descripcion_base=datos["descripcion_base"],
+            componentes_involucrados=componentes,
+            dependencias_previas=dependencias,
+            consulta_rag=f"{datos['consulta_base']} {' '.join(componentes)}",
+        ))
+
+    return plan
