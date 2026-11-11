@@ -126,7 +126,7 @@ class PasoEnsamble(BaseModel):
     descripcion_base: str
     componentes_involucrados: list[str]
     dependencias_previas: list[str]
-    consulta_rag: str  # Query semántica lista para enviar al buscador de ChromaDB
+    consulta_rag: str  # Query semántica EN INGLÉS lista para enviar al buscador de ChromaDB
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +136,8 @@ class PasoEnsamble(BaseModel):
 class FragmentoManual(BaseModel):
     chunk_id: str
     manual_id: str
-    pagina: int
+    pagina: int  # Índice de la página en el PDF (base 1)
+    pagina_etiqueta: str = ""  # Numeración impresa del manual, ej. "1-6"
     seccion: str
     texto: str
     distancia: float  # Similitud calculada por ChromaDB (menor = más relevante)

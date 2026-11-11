@@ -239,7 +239,7 @@ class PasoEnsamble(BaseModel):
     descripcion_base: str
     componentes_involucrados: list[str]
     dependencias_previas: list[str]
-    consulta_rag: str  # Query semántica lista para enviar al buscador de ChromaDB
+    consulta_rag: str  # Query semántica EN INGLÉS lista para enviar al buscador de ChromaDB
 
 def generar_plan_ensamble(config: ConfiguracionPC) -> list[PasoEnsamble]:
     """Construye el DAG con networkx, aplica topological_sort y retorna los pasos ordenados."""
@@ -278,10 +278,26 @@ def generar_plan_ensamble(config: ConfiguracionPC) -> list[PasoEnsamble]:
   "manual_id": "asus_tuf_gaming_b650_plus_wifi",
   "componente_tipo": "motherboard",
   "pagina": 18,
+  "pagina_etiqueta": "1-8",
   "seccion": "1.1.7 System Panel Header",
   "texto": "The 10-1 pin System Panel header connects the front panel switches and LEDs... Pins 3 and 4 connect to the Power Switch button (PWRBTN# and GND). Ensure correct orientation."
 }
 ```
+
+### Dos precisiones sobre la página y el idioma
+
+* **Página:** los manuales numeran distinto en el PDF y en la hoja impresa (el ASUS usa `i`…`x` y luego `1-1`, `1-2`…). Por eso hay dos campos:
+  * `pagina` (`int`): índice de la página en el PDF, empezando en 1. Es el que abre `pypdf`.
+  * `pagina_etiqueta` (`str`): la numeración impresa del manual, por ejemplo `"1-6"`. Es la que el usuario ve en su manual y la que debe citar el generador. Si el PDF no tiene etiquetas queda vacía.
+* **Idioma:** los manuales y el modelo de *embeddings* por defecto de ChromaDB (`all-MiniLM-L6-v2`) son en inglés. Por eso `consulta_rag` (Módulo 2) se escribe **en inglés**; si se cambia a un modelo multilingüe, esta regla se puede relajar.
+
+### Cuando no hay manual para la pieza
+
+El catálogo tiene miles de placas y el corpus del MVP solo un manual (ASUS TUF B650-PLUS WIFI). Para el resto de las piezas el buscador **no debe devolver texto de otro manual**:
+
+* Si se pasa `manual_id`, filtra la búsqueda por ese manual (metadato de ChromaDB).
+* Si no hay ningún manual indexado para la pieza, devuelve `[]`.
+* La correspondencia pieza → `manual_id` la define el Módulo 3 (propuesta: `data/processed/manuales.json`).
 
 ### Firma y tipos en código
 
@@ -289,13 +305,19 @@ def generar_plan_ensamble(config: ConfiguracionPC) -> list[PasoEnsamble]:
 class FragmentoManual(BaseModel):
     chunk_id: str
     manual_id: str
-    pagina: int
+    pagina: int                  # Índice de la página en el PDF (base 1)
+    pagina_etiqueta: str = ""    # Numeración impresa del manual, ej. "1-6"
     seccion: str
     texto: str
     distancia: float  # Grado de similitud calculado por ChromaDB (menor = más relevante)
 
-def buscar_contexto_paso(paso: PasoEnsamble, top_k: int = 3) -> list[FragmentoManual]:
-    """Consulta ChromaDB usando paso.consulta_rag y retorna los fragmentos más relevantes."""
+def buscar_contexto_paso(
+    paso: PasoEnsamble, top_k: int = 3, manual_id: str | None = None
+) -> list[FragmentoManual]:
+    """Consulta ChromaDB usando paso.consulta_rag y retorna los fragmentos más relevantes.
+
+    Devuelve [] si no hay manual indexado para la pieza (nunca texto de otro manual).
+    """
     ...
 ```
 
@@ -313,7 +335,8 @@ Este módulo toma:
 
 Y ensambla un **Prompt Estructurado** para el LLM (Llama 3.3 vía NVIDIA/Groq API), con una directriz estricta:
 * El modelo **no puede inventar números de pines ni ranuras**.
-* Debe citar la página del manual de donde sacó cada detalle crítico (ej. `[Manual ASUS B650, pág. 18]`).
+* Debe citar la página del manual de donde sacó cada detalle crítico (ej. `[Manual ASUS B650, pág. 1-8]`), usando `pagina_etiqueta` y, si está vacía, `pagina`.
+* Si un paso llega con `fragmentos_rag` vacío, debe indicar **"sin manual disponible para esta pieza"** y dar solo la `descripcion_base` del paso, sin pines, ranuras ni cables específicos.
 
 ### Firma y tipos en código
 
