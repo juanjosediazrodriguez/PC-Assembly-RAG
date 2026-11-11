@@ -21,7 +21,7 @@ Sin embargo:
 
 Una aplicación interactiva donde el usuario ingresa o selecciona la lista de componentes que compró y el sistema:
 
-1. **Valida la compatibilidad técnica:** Confirma que el procesador coincide con el zócalo (*socket*) de la placa, que la RAM es del tipo correcto (DDR4 o DDR5), que la fuente de poder entrega suficientes Watts y que la tarjeta gráfica cabe físicamente en el gabinete.
+1. **Valida la compatibilidad técnica:** Confirma que el procesador coincide con el zócalo (*socket*) de la placa, que la RAM es del tipo correcto (DDR3, DDR4 o DDR5), que el gabinete admite el tamaño de la placa y que la fuente de poder entrega suficientes Watts. *Alcance:* el catálogo no trae el largo de la tarjeta gráfica ni el espacio libre del gabinete, así que el MVP **no** valida si la GPU cabe físicamente.
 2. **Genera el orden óptimo de montaje:** Resuelve un **grafo de restricciones físicas** mediante ordenación topológica (*Topological Sort*) para indicar exactamente qué paso va antes de cuál.
 3. **Recupera las especificaciones exactas mediante RAG:** Busca en la base de datos vectorial (**ChromaDB**) los fragmentos exactos de los manuales oficiales de cada una de sus piezas (diagramas de pines, ranuras recomendadas, cables necesarios).
 4. **Redacta una guía paso a paso personalizada:** Un modelo de lenguaje (**LLM**) sintetiza el orden físico con los fragmentos de los manuales recuperados, generando una guía clara, detallada y a prueba de errores.
@@ -77,7 +77,7 @@ El sistema trabaja con dos conjuntos de datos complementarios:
 
 ### A. Catálogo de hardware estructurado (CSVs de Kaggle)
 * **Fuente:** Datasets públicos de especificaciones de hardware derivados de *PCPartPicker* (Kaggle).
-* **Entidades:** Procesadores (`cpu.csv`), Placas madre (`motherboard.csv`), Tarjetas gráficas (`video-card.csv`), Memorias (`memory.csv`), Fuentes de poder (`power-supply.csv`), Gabinetes (`case.csv`) y Disipadores (`cpu-cooler.csv`).
+* **Entidades:** Procesadores (`CPU.csv`), Placas madre (`Motherboard.csv`), Tarjetas gráficas (`GPU.csv`), Memorias (`Memory.csv`), Almacenamiento (`Storage.csv`), Fuentes de poder (`PSU.csv`), Gabinetes (`Case.csv`) y Disipadores (`Cooler.csv`).
 * **Propósito:** Validar compatibilidad de hardware con reglas deterministas antes de proceder al ensamble.
 
 ### B. Corpus de manuales técnicos oficiales (PDFs)
@@ -155,7 +155,7 @@ PC-Assembly-RAG/
 
 ### Requisitos previos
 * Python 3.11 o superior.
-* Gestor de paquetes `uv` instalado.
+* Gestor de paquetes `uv` instalado (`pip install uv`, o ver https://docs.astral.sh/uv/getting-started/installation/). Si `uv` no queda en el PATH, usar `python -m uv` en su lugar.
 
 ### Instalación
 ```bash
@@ -163,11 +163,19 @@ PC-Assembly-RAG/
 git clone git@github.com:juanjosediazrodriguez/PC-Assembly-RAG.git
 cd PC-Assembly-RAG
 
-# Crear el entorno virtual e instalar dependencias con uv
-uv venv
-uv pip install -e .
+# Crear .venv e instalar las versiones exactas de uv.lock (incluye pytest)
+uv sync --extra dev
 
 # Configurar variables de entorno
 cp .env.example .env
 # Luego editar .env con tu API key de NVIDIA o Groq
 ```
+
+### Comandos útiles
+```bash
+uv run python scripts/build_catalog.py   # regenerar data/processed/hardware_catalog.json
+uv run pytest tests -q                   # correr las pruebas
+```
+
+Para armar una `ConfiguracionPC` desde el catálogo (interfaz, pruebas de extremo a extremo): `src/catalogo.py`.
+
