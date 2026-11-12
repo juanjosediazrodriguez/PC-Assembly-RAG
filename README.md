@@ -1,184 +1,188 @@
 # PC-Assembly-RAG
 
-Asistente inteligente de ensamble de computadores con validación determinista, planificación por grafos y RAG sobre manuales técnicos de fabricantes. Proyecto final de **Inteligencia Artificial (SI3003), EAFIT, 2026-2**.
+**Asistente de ensamble de computadores: compatibilidad por reglas, orden de montaje por grafos y manual personalizado con RAG sobre manuales de fabricantes.**
 
-> **Estado:** en definición y arquitectura inicial.
+Proyecto final de **Inteligencia Artificial (SI3003)** · Universidad EAFIT · 2026-2
 
----
-
-## 1. El problema
-
-Al armar un computador de escritorio (*PC Custom*), el usuario tiene una colección de cajas independientes (procesador, placa madre, tarjeta gráfica, memoria RAM, fuente de poder, gabinete, almacenamiento y refrigeración). 
-
-Sin embargo:
-1. **No existe un manual unificado:** Cada componente trae un folleto aislado que no sabe qué otros componentes tienes.
-2. **El orden físico de montaje es crítico:** Si instalas la placa madre en el gabinete antes de colocar el procesador o el soporte (*bracket*) trasero del disipador, o si colocas una tarjeta gráfica gigante antes de conectar los cables de la fuente, el usuario se ve obligado a desarmar todo.
-3. **Detalles técnicos diminutos causan frustración:** El usuario no sabe en qué ranuras colocar la RAM para aprovechar el *Dual Channel* (doble canal) ni en qué orden conectar los pines diminutos del panel frontal (`POWER SW`, `RESET SW`, `HDD LED`) de su placa madre específica.
+**Autores:** Juan José Díaz Rodríguez · [nombre completo] (@Alejossss) · [nombre completo] (@pipesama500) · [nombre completo] (@jsuarezb1808)
+**Fecha:** 13-11-2026
 
 ---
 
-## 2. La solución
+## 1. Introducción
 
-Una aplicación interactiva donde el usuario ingresa o selecciona la lista de componentes que compró y el sistema:
+Quien arma un computador tiene ocho piezas independientes (procesador, placa madre, tarjeta gráfica, memoria RAM, almacenamiento, refrigeración, fuente y gabinete) y ningún manual que las conozca a todas: cada una trae el suyo. De ahí salen tres problemas: las incompatibilidades (socket, tipo de RAM, tamaño, potencia) se descubren tarde; el orden de montaje importa y equivocarse obliga a desarmar; y los detalles de la placa concreta (en qué ranuras va la RAM, a qué conectores va el panel frontal) están enterrados en un manual de decenas de páginas.
 
-1. **Valida la compatibilidad técnica:** Confirma que el procesador coincide con el zócalo (*socket*) de la placa, que la RAM es del tipo correcto (DDR3, DDR4 o DDR5), que el gabinete admite el tamaño de la placa y que la fuente de poder entrega suficientes Watts. *Alcance:* el catálogo no trae el largo de la tarjeta gráfica ni el espacio libre del gabinete, así que el MVP **no** valida si la GPU cabe físicamente.
-2. **Genera el orden óptimo de montaje:** Resuelve un **grafo de restricciones físicas** mediante ordenación topológica (*Topological Sort*) para indicar exactamente qué paso va antes de cuál.
-3. **Recupera las especificaciones exactas mediante RAG:** Busca en la base de datos vectorial (**ChromaDB**) los fragmentos exactos de los manuales oficiales de cada una de sus piezas (diagramas de pines, ranuras recomendadas, cables necesarios).
-4. **Redacta una guía paso a paso personalizada:** Un modelo de lenguaje (**LLM**) sintetiza el orden físico con los fragmentos de los manuales recuperados, generando una guía clara, detallada y a prueba de errores.
+El proyecto combina técnicas clásicas (reglas y un grafo de precedencias con orden topológico) con IA moderna (recuperación semántica sobre el manual oficial y un modelo de lenguaje). La idea central es que **el modelo de lenguaje solo redacta**: lo que se puede calcular lo calcula el código, y cada dato tomado de un manual lleva una cita de página que se verifica contra el fragmento recuperado.
 
----
+## 2. Objetivo
 
-## 3. Arquitectura del sistema
+**General:** generar, para una configuración de ocho piezas, un manual de ensamble personalizado cuyos datos técnicos provengan de los manuales oficiales y estén citados con su página.
 
-```
-┌────────────────────────────────────────────────────────┐
-│             Entrada del usuario                        │
-│   (CPU, Motherboard, GPU, RAM, PSU, Case, Cooler)      │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│ Componente 1: Validador de Compatibilidad              │ (IA Clásica - Reglas)
-│ - Sockets, TDP / Watts, dimensiones y DDR              │
-└──────────────────────────┬─────────────────────────────┘
-                           │ Componentes válidos
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│ Componente 2: Planificador de Ensamble                 │ (IA Clásica - Grafos)
-│ - Grafo acíclico dirigido (DAG) de dependencias        │
-│ - Ordenación topológica de montaje                     │
-└──────────────────────────┬─────────────────────────────┘
-                           │ Secuencia ordenada de pasos
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│ Componente 3: Motor RAG con ChromaDB                   │ (IA Moderna - Embeddings)
-│ - Búsqueda semántica sobre manuales oficiales en PDF   │
-│ - Recuperación de diagramas, pines y precauciones      │
-└──────────────────────────┬─────────────────────────────┘
-                           │ Fragmentos de contexto recuperados
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│ Componente 4: Generador del Manual (LLM)               │ (Llama 3.3 / NVIDIA / Groq)
-│ - Redacción de la guía personalizada paso a paso       │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│           Interfaz Interactiva (Streamlit)             │
-│ - Resumen de compatibilidad + Manual interactivo       │
-└────────────────────────────────────────────────────────┘
-```
+**Específicos:**
+1. Detectar el 100 % de las incompatibilidades en 20 configuraciones de prueba (10 compatibles y 10 incompatibles) y producir, en todos los casos, un orden de montaje que respete las precedencias físicas.
+2. Recuperar el fragmento correcto del manual entre los 3 primeros resultados (Recall@3) en al menos el 90 % de las consultas de prueba.
+3. Lograr que el 100 % de las citas del manual generado correspondan a fragmentos recuperados y que no aparezcan pines, ranuras ni cables inventados (0 alucinaciones).
 
----
+## 3. Datos
 
-## 4. Datos
-
-El sistema trabaja con dos conjuntos de datos complementarios:
-
-### A. Catálogo de hardware estructurado (CSVs de Kaggle)
-* **Fuente:** Datasets públicos de especificaciones de hardware derivados de *PCPartPicker* (Kaggle).
-* **Entidades:** Procesadores (`CPU.csv`), Placas madre (`Motherboard.csv`), Tarjetas gráficas (`GPU.csv`), Memorias (`Memory.csv`), Almacenamiento (`Storage.csv`), Fuentes de poder (`PSU.csv`), Gabinetes (`Case.csv`) y Disipadores (`Cooler.csv`).
-* **Propósito:** Validar compatibilidad de hardware con reglas deterministas antes de proceder al ensamble.
-
-### B. Corpus de manuales técnicos oficiales (PDFs)
-* **Fuente:** Manuales de usuario oficiales descargados de sitios de soporte de fabricantes (ASUS, MSI, Gigabyte, Corsair, NZXT, Cooler Master).
-* **Política de versionado en Git vs. Almacenamiento a escala:**
-  * **Alcance del MVP:** Se incluye únicamente el manual de muestra de la placa madre (`E21902_TUF_GAMING_B650-PLUS_WIFI_UM_V3_WEB.pdf`, 3.2 MB) dentro del repositorio para garantizar que cualquier miembro del equipo o evaluador pueda clonar y ejecutar el pipeline inmediatamente.
-  * **Escala y producción:** En un escenario real con cientos o miles de manuales técnicos (gigabytes de información), **los archivos `.pdf` nunca se suben a Git** (bloqueados en `.gitignore`). Se almacenan en almacenamiento de objetos en la nube (ej. AWS S3, Google Cloud Storage) o en un volumen local, descargándose mediante scripts de ingestión automatizados.
-* **Procesamiento:**
-  * Extracción de texto mediante `pypdf`.
-  * *Chunking* (segmentación) en fragmentos semánticos (300-600 palabras) etiquetados con metadatos (`componente`, `tipo`, `seccion`).
-  * Indexación vectorial persistente en **ChromaDB** con embeddings locales.
-
----
-
-## 5. Metas y evaluación del proyecto
-
-Para garantizar rigor académico y demostrar el valor de ambas partes del curso:
-
-| Módulo | Técnica | Métrica de evaluación | Meta del proyecto |
+| Fuente | Forma de obtención | Tamaño y formato | Variables principales |
 |---|---|---|---|
-| **1. Compatibilidad** | Reglas deterministas | Exactitud en 20 configuraciones de prueba (10 compatibles y 10 incompatibles) | **100 % de detección correcta** |
-| **2. Planificador** | Grafo de dependencias + Topological Sort | Verificación de orden físico válido (sin pasos contradictorios) | **100 % de grafos acíclicos válidos** |
-| **3. RAG** | ChromaDB + Embeddings | Recuperación de contexto relevante (ej. pines del panel frontal y ranuras de RAM) | **≥ 90 % de recuperación precisa** |
-| **4. Generador** | LLM con contexto inyectado | Rúbrica de manual (completitud, precisión técnica y ausencia de alucinaciones) | **0 alucinaciones en advertencias de cables y pines** |
+| **Catálogo de hardware** | CSV de especificaciones derivados de PCPartPicker, descargados de Kaggle | 8 CSV, 14.031 filas, 3,8 MB → `hardware_catalog.json` con 14.030 piezas, 2,4 MB | Ver tabla siguiente |
+| **Manual de la placa** | PDF oficial de ASUS (TUF GAMING B650-PLUS WIFI) | 1 PDF, 43 páginas, 3,2 MB → 109 fragmentos | `chunk_id`, `manual_id`, `pagina`, `pagina_etiqueta`, `seccion`, `texto` |
 
----
+| Tipo de pieza | Piezas | Variables que usa el sistema |
+|---|---|---|
+| Procesador | 458 | socket, frecuencia, núcleos, hilos, consumo (W) |
+| Placa madre | 2.421 | socket, tamaño, tipo de RAM y su confianza |
+| Tarjeta gráfica | 2.515 | memoria de video, resolución, consumo (W) |
+| Memoria RAM | 1.707 | tipo (DDR3/4/5), capacidad |
+| Almacenamiento | 2.172 | tipo (NVMe/SATA/HDD), capacidad |
+| Refrigeración | 872 | tipo (aire/líquido) |
+| Fuente de poder | 2.314 | potencia (W), tamaño (ATX/SFX) |
+| Gabinete | 1.571 | tamaño (ATX/MicroATX/ITX) |
 
-## 6. Estructura del repositorio
+**Preprocesamiento** (`scripts/build_catalog.py` y `scripts/ingest_manuals.py`):
+- El tamaño de las placas se deduce del nombre, porque el CSV marca como ATX a casi todas las Micro ATX.
+- El CSV no trae el tipo de RAM de las placas: se deduce del nombre (DDR3/4/5), luego de una tabla de correcciones hecha por el equipo para LGA 1700 y, por último, del socket. Cada placa guarda su nivel de confianza (1.708 alta, 713 media).
+- Se excluye 1 registro con socket erróneo.
+- El manual se lee con `pypdf` (el PDF está cifrado con AES), se divide por secciones y en fragmentos de ~400 palabras con 50 de solapamiento, y cada fragmento conserva la página del PDF y la numeración impresa (por ejemplo, `1-8`).
+
+**Limitaciones y sesgos:**
+- El catálogo no trae el largo de la tarjeta gráfica ni el espacio del gabinete, así que no se valida si la GPU cabe físicamente, ni la compatibilidad socket–disipador.
+- El tipo de RAM de 713 placas (29 %) es una deducción de confianza media.
+- Hay un solo manual (la placa ASUS): con la configuración de ejemplo, 9 de los 15 pasos tienen manual y los otros 6 dicen «Sin manual disponible para esta pieza».
+- Los diagramas de pines de los manuales son imágenes: el texto describe cada conector pero no indica qué pin es cuál, y el sistema no lo inventa.
+- PCPartPicker es un sitio estadounidense: el catálogo refleja ese mercado.
+
+**Licencia y uso de los datos:**
+- **Especificaciones (CSV):** dataset *PC Parts* de warcoder en Kaggle ([enlace](https://www.kaggle.com/datasets/warcoder/pc-parts)). Licencia declarada: *Unknown* (sin licencia explícita). Los datos provienen de PCPartPicker. Se usan solo con fines académicos y no se redistribuyen con fines comerciales.
+- **Manuales (PDF):** documentos públicos de ASUS, usados con fines académicos. Los derechos son del fabricante; se incluye el manual de la placa como muestra.
+
+## 4. Metodología
+
+**Figura 1. Flujo metodológico: de los datos al manual con citas.**
+
+```mermaid
+flowchart LR
+    subgraph prep["Preparación (una sola vez)"]
+        CSV["8 CSV de Kaggle<br/>(PCPartPicker)"] --> CAT["build_catalog.py<br/>limpieza"] --> JSON[("hardware_catalog.json")]
+        PDF["Manual PDF<br/>(ASUS)"] --> ING["ingest_manuals.py<br/>texto, secciones, fragmentos"] --> CHR[("ChromaDB<br/>embeddings")]
+    end
+    subgraph run["Por cada configuración"]
+        U["8 piezas elegidas"] --> V["Validador<br/>4 reglas"]
+        V -- incompatible --> E["Errores explicados"]
+        V -- compatible --> P["Planificador<br/>grafo + orden topológico"]
+        P --> R["Búsqueda en el manual<br/>de la pieza"]
+        R --> G["Generador LLM<br/>un paso por llamada"]
+        G --> C["Validación de citas"]
+        C --> M["Manual con citas"]
+    end
+    JSON --> U
+    CHR --> R
+```
+
+**Etapas y decisiones principales:**
+
+| Etapa | Qué hace | Por qué así |
+|---|---|---|
+| Compatibilidad | 4 reglas: socket, tipo de RAM, tamaño del gabinete y potencia (consumo de CPU + GPU + 75 W, más 150 W de margen) | Son reglas verificables; un modelo de lenguaje no debe decidirlas |
+| Planificación | Grafo acíclico de 15 tareas (`networkx`) que se adapta al almacenamiento (NVMe o SATA/HDD) y a la refrigeración (aire o líquida); el orden sale de la ordenación topológica | El orden físico es un problema de precedencias, no de redacción |
+| Recuperación | Fragmentos de ~400 palabras, embeddings `all-MiniLM-L6-v2` (locales y gratuitos), ChromaDB con distancia coseno, `top_k = 2` | No requiere API ni costo. Las consultas van en inglés porque el modelo y los manuales lo están |
+| Consulta | Se busca solo en el manual de la pieza (`manual_id`) y la consulta no lleva los nombres de las piezas | Medido en una consulta: el fragmento correcto pasó de la posición 7 a la 1 |
+| Generación | Una llamada por paso a `nvidia/nemotron-3-ultra-550b-a55b` (API compatible con OpenAI), temperatura 0,2. Los pasos sin manual no llaman al modelo | Llamadas pequeñas y verificables; el modelo no puede inventar pines donde no hay manual |
+| Verificación | Cada página citada debe existir entre los fragmentos del paso; un reintento y, si falla, texto seguro con la descripción base | Apoya directamente la meta de 0 alucinaciones |
+
+**Métricas, metas y línea base** (se usan tal cual en la sección 6):
+
+| Módulo | Métrica | Meta | Línea base |
+|---|---|---|---|
+| Compatibilidad | Exactitud en 20 configuraciones | 100 % | Sin validador (todo «compatible»): 50 % |
+| Planificador | Órdenes que respetan las precedencias | 100 % | Orden fijo del grafo base en configuraciones con SATA o refrigeración líquida |
+| Recuperación | Recall@3 | ≥ 90 % | Consulta con nombres de pieza; búsqueda por palabras clave |
+| Generador | Citas válidas / pines, ranuras o cables inventados | 100 % / 0 | El mismo modelo sin fragmentos del manual |
+
+## 5. Diagrama de interacción (UML)
+
+**Figura 2. Secuencia de una consulta en producción.**
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant UI as Interfaz (Streamlit)
+    participant V as Validador
+    participant P as Planificador
+    participant B as Buscador (ChromaDB)
+    participant L as Modelo de lenguaje (API)
+    U->>UI: Elige las 8 piezas
+    UI->>V: validar_compatibilidad(config)
+    V-->>UI: errores y advertencias
+    alt Configuración incompatible
+        UI-->>U: Muestra los errores, sin plan
+    else Configuración compatible
+        UI->>P: generar_plan_ensamble(config)
+        P-->>UI: pasos ordenados
+        UI-->>U: Muestra el orden de montaje
+        U->>UI: Pulsa "Generar manual"
+        UI->>B: buscar_contexto_paso(paso, manual_id)
+        B-->>UI: fragmentos con página (o ninguno)
+        loop Cada paso con fragmentos
+            UI->>L: paso + fragmentos
+            L-->>UI: texto con citas
+            UI->>UI: verifica que las páginas citadas existan
+        end
+        Note over UI: Los pasos sin manual llevan texto fijo y no llaman al modelo
+        UI-->>U: Manual con citas y lista de fuentes
+    end
+```
+
+## 6. Resultados
+
+_Pendiente: se completa con los resultados de #3, #9 y #23. Cada fila usa las mismas métricas y datos de la sección 4._
+
+| Módulo | Métrica | Meta | Línea base | Resultado |
+|---|---|---|---|---|
+| Compatibilidad | Exactitud en 20 configuraciones | 100 % | 50 % | _pendiente (#3)_ |
+| Planificador | Órdenes que respetan las precedencias | 100 % | _pendiente_ | _pendiente_ |
+| Recuperación | Recall@3 | ≥ 90 % | _pendiente_ | _pendiente (#9)_ |
+| Generador | Citas válidas / datos inventados | 100 % / 0 | _pendiente_ | _pendiente (#23)_ |
+
+**Análisis:** _pendiente: qué funcionó, qué no y limitaciones._
+
+## 7. Reproducibilidad
+
+**Requisitos:** Python 3.11 o superior, [`uv`](https://docs.astral.sh/uv/getting-started/installation/) y una clave gratuita de la API de NVIDIA ([build.nvidia.com](https://build.nvidia.com/)) para el generador. La primera vez, ChromaDB descarga el modelo de embeddings (~80 MB).
+
+```bash
+git clone https://github.com/juanjosediazrodriguez/PC-Assembly-RAG.git
+cd PC-Assembly-RAG
+uv sync --extra dev                         # entorno con las versiones de uv.lock
+cp .env.example .env                        # en Windows: copy .env.example .env; luego pega NVIDIA_API_KEY
+uv run python scripts/ingest_manuals.py     # lee los PDF y genera los fragmentos
+uv run pytest tests -q                      # pruebas automáticas (la del modelo real es opcional)
+uv run streamlit run app/main.py            # abre la interfaz
+```
+
+Con el entorno `.venv` ya activo, usa `python ...` en lugar de `uv run python ...`. Los modelos gratuitos de NVIDIA cambian: si el modelo de `.env` devuelve 404, prueba otro de la lista de tu cuenta.
+
+**Estructura del repositorio:**
 
 ```
 PC-Assembly-RAG/
+├── app/main.py            # interfaz Streamlit
 ├── data/
-│   ├── raw/                  # Datos crudos (CSVs y manuales en PDF)
-│   ├── processed/            # Catálogo limpio y chunks procesados
-│   └── vectorstore/          # Base vectorial de ChromaDB (local)
+│   ├── raw/               # CSV de especificaciones y manuales en PDF
+│   └── processed/         # catálogo, mapa de manuales y fragmentos
+├── docs/contratos.md      # contratos de datos entre los 4 módulos
+├── scripts/               # build_catalog.py, ingest_manuals.py
 ├── src/
-│   ├── compatibilidad/       # Motor de reglas de compatibilidad
-│   ├── planificador/         # Grafo de dependencias y orden de ensamble
-│   ├── rag/                  # Ingesta, chunking y búsqueda vectorial
-│   └── llm/                  # Cliente LLM y plantillas de prompts
-├── app/
-│   └── main.py               # Interfaz interactiva de usuario en Streamlit
-├── scripts/
-│   ├── build_catalog.py      # Limpieza y preparación de datos tabulares
-│   └── ingest_manuals.py     # Ingesta de manuales en ChromaDB
-├── tests/                    # Pruebas unitarias de compatibilidad y ordenación
-├── AGENTS.md                 # Reglas de desarrollo para el equipo y agentes
-├── pyproject.toml            # Dependencias del proyecto con uv
-└── README.md                 # Este documento
+│   ├── compatibilidad/    # reglas del validador
+│   ├── planificador/      # grafo y orden de montaje
+│   ├── rag/               # búsqueda vectorial en ChromaDB
+│   ├── llm/               # generador del manual y verificación de citas
+│   └── catalogo.py, esquemas.py, manuales.py, pipeline.py
+├── tests/                 # pruebas unitarias y de integración
+└── AGENTS.md              # reglas de trabajo del equipo
 ```
 
----
-
-## 7. Plan de desarrollo por fases
-
-1. **Fase 1: Datos y compatibilidad**
-   * Descarga y curaduría del catálogo de hardware desde Kaggle.
-   * Implementación del módulo de reglas de compatibilidad con pruebas unitarias (`pytest`).
-2. **Fase 2: Planificador de montaje (Grafo de dependencias)**
-   * Modelado del grafo de restricciones de ensamble físico.
-   * Generación de la secuencia de pasos con ordenación topológica.
-3. **Fase 3: Pipeline RAG con ChromaDB**
-   * Descarga de manuales oficiales de muestra.
-   * Extracción de texto, segmentación en chunks con metadatos e indexación en ChromaDB.
-   * Evaluación de recuperación semántica.
-4. **Fase 4: Generador de manuales (LLM) e interfaz interactiva**
-   * Integración del contexto recuperado en el prompt del LLM (NVIDIA/Groq).
-   * Interfaz en Streamlit para seleccionar componentes y generar el manual en tiempo real.
-5. **Fase 5: Evaluación y documentación final**
-   * Pruebas de extremo a extremo, medición de métricas y preparación de la sustentación.
-
----
-
-## 8. Cómo empezar
-
-### Requisitos previos
-* Python 3.11 o superior.
-* Gestor de paquetes `uv` instalado (`pip install uv`, o ver https://docs.astral.sh/uv/getting-started/installation/). Si `uv` no queda en el PATH, usar `python -m uv` en su lugar.
-
-### Instalación
-```bash
-# Clonar el repositorio
-git clone git@github.com:juanjosediazrodriguez/PC-Assembly-RAG.git
-cd PC-Assembly-RAG
-
-# Crear .venv e instalar las versiones exactas de uv.lock (incluye pytest)
-uv sync --extra dev
-
-# Configurar variables de entorno
-cp .env.example .env
-# Luego editar .env con tu API key de NVIDIA o Groq
-```
-
-### Comandos útiles
-```bash
-uv run python scripts/build_catalog.py   # regenerar data/processed/hardware_catalog.json
-uv run python scripts/ingest_manuals.py  # leer los PDF y generar data/processed/manual_chunks.jsonl (no se versiona)
-uv run pytest tests -q                   # correr las pruebas
-```
-
-**Antes de usar el buscador** hay que correr la ingesta: sin `manual_chunks.jsonl` la colección de ChromaDB queda vacía y la búsqueda devuelve `[]` sin avisar. Si vuelves a ingerir, borra `data/vectorstore/`: `cargar_chunks_jsonl` no reindexa cuando la colección ya tiene datos. El mapa de qué manual cubre qué pieza está en `data/processed/manuales.json` (se edita a mano, y se consulta con `src/manuales.py`).
-
-Para armar una `ConfiguracionPC` desde el catálogo (interfaz, pruebas de extremo a extremo): `src/catalogo.py`.
-
+_Uso de IA generativa: [declaración del equipo]._
