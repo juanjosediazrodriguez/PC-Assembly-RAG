@@ -2,10 +2,10 @@
 Ingesta y procesamiento de manuales tecnicos en formato PDF para PC-Assembly-RAG.
 
 Este modulo implementa el procesamiento de manuales de hardware usando pypdf:
-1. Extrae texto pagina por pagina respetando la numeracion oficial del manual.
+1. Extrae texto pagina por pagina, con el indice fisico (pagina) y la numeracion impresa (pagina_etiqueta).
 2. Identifica secciones estructurales (mediante marcadores/outlines de PDF o patrones de encabezado).
 3. Segmenta en fragmentos semanticos (~400 palabras) priorizando limites de seccion.
-4. Asocia metadatos normalizados (chunk_id, manual_id, componente_tipo, pagina, seccion).
+4. Asocia metadatos normalizados (chunk_id, manual_id, componente_tipo, pagina, pagina_etiqueta, seccion).
 5. Vincula componentes contra data/processed/hardware_catalog.json si esta disponible.
 6. Exporta el resultado a data/processed/manual_chunks.jsonl.
 
@@ -18,6 +18,7 @@ import argparse
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,11 @@ logger = logging.getLogger("ingest_manuals")
 
 # Rutas estandar del repositorio
 RAIZ = Path(__file__).resolve().parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
+from src.manuales import manual_por_archivo  # noqa: E402
+
 CARPETA_RAW = RAIZ / "data" / "raw"
 CARPETA_PROCESADOS = RAIZ / "data" / "processed"
 CATALOGO_HARDWARE_PATH = CARPETA_PROCESADOS / "hardware_catalog.json"
@@ -46,7 +52,8 @@ class ChunkManual(BaseModel):
     chunk_id: str = Field(description="Identificador unico del fragmento")
     manual_id: str = Field(description="Identificador canonico del manual")
     componente_tipo: str = Field(description="Categoria del componente (motherboard, cpu, etc.)")
-    pagina: int = Field(description="Numero oficial de pagina segun el manual")
+    pagina: int = Field(description="Indice de la pagina en el PDF (base 1)")
+    pagina_etiqueta: str = Field(default="", description="Numeracion impresa del manual, p. ej. '1-8'")
     seccion: str = Field(description="Titulo o nombre de la seccion identificada")
     texto: str = Field(description="Texto procesado del fragmento")
 
@@ -126,46 +133,19 @@ def vincular_con_catalogo(
 # ---------------------------------------------------------------------------
 # Extraccion de texto y numeracion oficial de paginas
 # ---------------------------------------------------------------------------
-def resolver_numero_pagina_oficial(reader: pypdf.PdfReader, indice_cero: int, texto_pagina: str) -> int:
+def obtener_etiqueta_pagina(reader: pypdf.PdfReader, indice_cero: int) -> str:
     """
-    Determina la numeracion oficial del manual para una pagina dada.
-    Prioridad:
-    1. Etiqueta oficial del PDF (reader.page_labels / get_page_label).
-    2. Patron de numero de pagina impreso al pie o encabezado.
-    3. Indice fisico base 1 como respaldo.
+    Devuelve la numeracion impresa del manual para una pagina (p. ej. '1-8' o 'iv').
+
+    Devuelve cadena vacia si el PDF no define etiquetas de pagina: en ese caso pypdf
+    inventaria '1', '2', ... a partir del indice fisico, que no es la numeracion impresa.
     """
-    # 1. Intentar con etiquetas nativas de pypdf
     try:
-        etiquetas = getattr(reader, "page_labels", None)
-        if etiquetas and indice_cero < len(etiquetas):
-            etiqueta = str(etiquetas[indice_cero]).strip()
-            if etiqueta.isdigit():
-                return int(etiqueta)
+        if "/PageLabels" not in reader.trailer["/Root"]:
+            return ""
+        return str(reader.page_labels[indice_cero]).strip()
     except Exception:
-        pass
-
-    try:
-        etiqueta = reader.get_page_label(indice_cero)
-        if etiqueta and str(etiqueta).strip().isdigit():
-            return int(str(etiqueta).strip())
-    except Exception:
-        pass
-
-    # 2. Intentar buscar patrones de numero de pagina al final o inicio del texto
-    lineas = [linea.strip() for linea in texto_pagina.split("\n") if linea.strip()]
-    if lineas:
-        # Revisar ultima linea
-        match_pie = re.match(r"^(?:page|pág(?:ina)?\.?)?\s*(\d+)\s*$", lineas[-1], re.IGNORECASE)
-        if match_pie:
-            return int(match_pie.group(1))
-
-        # Revisar primera linea
-        match_encabezado = re.match(r"^(?:page|pág(?:ina)?\.?)?\s*(\d+)\s*$", lineas[0], re.IGNORECASE)
-        if match_encabezado:
-            return int(match_encabezado.group(1))
-
-    # 3. Respaldo por indice fisico base 1
-    return indice_cero + 1
+        return ""
 
 
 def extraer_marcadores_outline(outline: Any, reader: pypdf.PdfReader) -> list[tuple[int, str]]:
@@ -226,12 +206,14 @@ def extraer_paginas_pdf(ruta_pdf: Path) -> tuple[list[dict[str, Any]], dict[int,
 
         # Limpiar caracteres nulos y espacios redundantes
         texto_limpio = texto.replace("\x00", " ").strip()
-        pagina_oficial = resolver_numero_pagina_oficial(reader, indice_fisico, texto_limpio)
+        pagina = indice_fisico + 1
+        etiqueta = obtener_etiqueta_pagina(reader, indice_fisico)
         seccion_outline = mapa_secciones_outline.get(indice_fisico, "")
 
         paginas_extraidas.append({
             "indice_fisico": indice_fisico,
-            "pagina_oficial": pagina_oficial,
+            "pagina": pagina,
+            "pagina_etiqueta": etiqueta,
             "texto": texto_limpio,
             "seccion_outline": seccion_outline,
         })
@@ -324,7 +306,8 @@ def segmentar_en_chunks(
         if not texto_pag:
             continue
 
-        pagina_oficial = item_pag["pagina_oficial"]
+        pagina = item_pag["pagina"]
+        pagina_etiqueta = item_pag["pagina_etiqueta"]
         seccion_outline = item_pag.get("seccion_outline", "")
 
         if seccion_outline:
@@ -340,13 +323,15 @@ def segmentar_en_chunks(
                     seccion_actual = titulo_bloque
                 if contenido_bloque:
                     unidades.append({
-                        "pagina": pagina_oficial,
+                        "pagina": pagina,
+                        "pagina_etiqueta": pagina_etiqueta,
                         "seccion": seccion_actual,
                         "texto": contenido_bloque,
                     })
         else:
             unidades.append({
-                "pagina": pagina_oficial,
+                "pagina": pagina,
+                "pagina_etiqueta": pagina_etiqueta,
                 "seccion": seccion_actual,
                 "texto": texto_pag,
             })
@@ -367,6 +352,7 @@ def segmentar_en_chunks(
                 grupo_actual = {
                     "seccion": unidad["seccion"],
                     "pagina": unidad["pagina"],
+                    "pagina_etiqueta": unidad["pagina_etiqueta"],
                     "textos": [unidad["texto"]],
                 }
             else:
@@ -392,6 +378,7 @@ def segmentar_en_chunks(
                         manual_id=manual_id,
                         componente_tipo=componente_tipo,
                         pagina=sec["pagina"],
+                        pagina_etiqueta=sec["pagina_etiqueta"],
                         seccion=sec["seccion"],
                         texto=texto_completo,
                     )
@@ -412,6 +399,7 @@ def segmentar_en_chunks(
                             manual_id=manual_id,
                             componente_tipo=componente_tipo,
                             pagina=sec["pagina"],
+                            pagina_etiqueta=sec["pagina_etiqueta"],
                             seccion=sec["seccion"],
                             texto=subtexto,
                         )
@@ -435,6 +423,7 @@ def segmentar_en_chunks(
                         manual_id=manual_id,
                         componente_tipo=componente_tipo,
                         pagina=unidad["pagina"],
+                        pagina_etiqueta=unidad["pagina_etiqueta"],
                         seccion="General",
                         texto=subtexto,
                     )
@@ -478,7 +467,12 @@ def procesar_un_manual(
 
     # 2. Tomar muestra de texto para correlacion con catalogo
     muestra_texto = " ".join([p["texto"] for p in paginas[:3]])
-    manual_id, componente_tipo = vincular_con_catalogo(ruta_pdf.name, muestra_texto, catalogo)
+    registro = manual_por_archivo(ruta_pdf.name)
+    if registro:
+        manual_id, componente_tipo = registro
+        logger.info("Manual encontrado en data/processed/manuales.json: %s (%s)", manual_id, componente_tipo)
+    else:
+        manual_id, componente_tipo = vincular_con_catalogo(ruta_pdf.name, muestra_texto, catalogo)
 
     # 3. Segmentar respetando secciones y conteo de palabras
     chunks = segmentar_en_chunks(
@@ -570,18 +564,24 @@ def main():
     ruta_salida = Path(args.output)
     catalogo = cargar_catalogo_hardware()
 
+    total = 0
     if args.input:
         ruta_entrada = Path(args.input)
         if ruta_entrada.is_file() and ruta_entrada.suffix.lower() == ".pdf":
             chunks = procesar_un_manual(ruta_entrada, catalogo, palabras_objetivo=args.palabras)
-            exportar_chunks_jsonl(chunks, ruta_salida, sobrescribir=True)
-            logger.info("Exportados %d chunks a %s", len(chunks), ruta_salida)
+            total = exportar_chunks_jsonl(chunks, ruta_salida, sobrescribir=True)
+            logger.info("Exportados %d chunks a %s", total, ruta_salida)
         elif ruta_entrada.is_dir():
-            procesar_directorio(ruta_entrada, ruta_salida, palabras_objetivo=args.palabras)
+            total = procesar_directorio(ruta_entrada, ruta_salida, palabras_objetivo=args.palabras)
         else:
             logger.error("La ruta especificada no es un archivo PDF ni un directorio valido: %s", ruta_entrada)
+            sys.exit(1)
     else:
-        procesar_directorio(CARPETA_RAW, ruta_salida, palabras_objetivo=args.palabras)
+        total = procesar_directorio(CARPETA_RAW, ruta_salida, palabras_objetivo=args.palabras)
+
+    if total == 0:
+        logger.error("No se genero ningun chunk. Revisa los errores anteriores.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

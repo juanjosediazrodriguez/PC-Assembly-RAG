@@ -118,6 +118,7 @@ class MotorVectorial:
                     "manual_id": str(chunk.get("manual_id", "")),
                     "componente_tipo": str(chunk.get("componente_tipo", "general")),
                     "pagina": int(chunk.get("pagina", 0)),
+                    "pagina_etiqueta": str(chunk.get("pagina_etiqueta", "")),
                     "seccion": str(chunk.get("seccion", "")),
                 })
 
@@ -198,6 +199,7 @@ class MotorVectorial:
                     chunk_id=str(cid),
                     manual_id=str(meta.get("manual_id", "")),
                     pagina=int(meta.get("pagina", 0)),
+                    pagina_etiqueta=str(meta.get("pagina_etiqueta", "")),
                     seccion=str(meta.get("seccion", "")),
                     texto=str(doc),
                     distancia=round(float(dist), 4),
@@ -234,13 +236,18 @@ def obtener_motor(
     return _motor_global
 
 
-def buscar_contexto_paso(paso: PasoEnsamble, top_k: int = 3) -> list[FragmentoManual]:
+def buscar_contexto_paso(
+    paso: PasoEnsamble, top_k: int = 3, manual_id: Optional[str] = None
+) -> list[FragmentoManual]:
     """
     Consulta ChromaDB usando paso.consulta_rag y retorna los fragmentos más relevantes.
     Firma oficial del contrato docs/contratos.md (Sección 5).
+
+    Si se pasa manual_id, solo busca en ese manual. Devuelve [] si no hay manual
+    indexado para la pieza (nunca texto de otro manual).
     """
     # 1. Obtener la instancia compartida de ChromaDB
     motor = obtener_motor()
 
     # 2. Delegar la búsqueda usando la consulta semántica del paso de ensamble
-    return motor.buscar(query=paso.consulta_rag, top_k=top_k)
+    return motor.buscar(query=paso.consulta_rag, top_k=top_k, manual_id=manual_id)
