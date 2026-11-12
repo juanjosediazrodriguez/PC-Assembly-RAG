@@ -18,7 +18,11 @@ from src.catalogo import (  # noqa: E402
     TIPOS_PIEZA, cargar_catalogo, construir_configuracion, nombres_por_tipo,
 )
 from src.compatibilidad.validador import validar_compatibilidad  # noqa: E402
-from src.esquemas import ConfiguracionPC, ResultadoCompatibilidad  # noqa: E402
+from src.esquemas import ConfiguracionPC, PasoEnsamble, ResultadoCompatibilidad  # noqa: E402
+from src.llm import cargar_cliente, generar_manual  # noqa: E402
+from src.llm.generador import TEXTO_NO_VERIFICADO  # noqa: E402
+from src.pipeline import armar_pasos_con_contexto  # noqa: E402
+from src.rag.buscador import RUTA_CHUNKS_JSONL  # noqa: E402
 from src.planificador.grafo import generar_plan_ensamble  # noqa: E402
 
 ETIQUETAS = {
@@ -84,16 +88,75 @@ def mostrar_compatibilidad(config: ConfiguracionPC) -> ResultadoCompatibilidad:
     return resultado
 
 
-def mostrar_pasos(config: ConfiguracionPC) -> None:
+def mostrar_pasos(plan: list[PasoEnsamble]) -> None:
     st.subheader("Orden de montaje")
-    for paso in generar_plan_ensamble(config):
+    for paso in plan:
         with st.expander(f"{paso.orden}. {paso.titulo}  ·  {FASES[paso.fase]}"):
             st.write(paso.descripcion_base)
             previas = ", ".join(paso.dependencias_previas) or "ninguna"
             st.caption(f"Después de: {previas}")
-            # TODO (#8 y #10): texto del LLM y citas del manual con página.
-    st.info("El manual redactado con citas del fabricante llegará con el RAG y el generador LLM.")
 
+
+def generar_y_guardar(
+    config: ConfiguracionPC, resultado: ResultadoCompatibilidad, plan: list[PasoEnsamble]
+) -> None:
+    """Llama al modelo (tarda decenas de segundos) y guarda el manual en la sesión."""
+    if not RUTA_CHUNKS_JSONL.exists():
+        st.error("Falta la ingesta de los manuales. Corre: python scripts/ingest_manuals.py (con el entorno .venv activo)")
+        return
+    try:
+        cliente, modelo = cargar_cliente()
+    except (RuntimeError, ValueError) as error:
+        st.error(f"No se puede usar el modelo: {error}")
+        return
+
+    barra = st.progress(0.0, text="Buscando en los manuales...")
+    pasos_con_contexto = armar_pasos_con_contexto(plan)
+
+    def avanzar(indice: int, total: int, titulo: str) -> None:
+        barra.progress(indice / total, text=f"Redactando el paso {indice + 1} de {total}: {titulo}")
+
+    manual = generar_manual(
+        config, resultado, pasos_con_contexto, cliente=cliente, modelo=modelo, progreso=avanzar
+    )
+    barra.empty()
+    st.session_state["manual"] = {"firma": config.model_dump_json(), "datos": manual}
+
+
+def mostrar_manual(
+    config: ConfiguracionPC, resultado: ResultadoCompatibilidad, plan: list[PasoEnsamble]
+) -> None:
+    st.subheader("Manual con citas del fabricante")
+    st.caption(
+        "Lo redacta un modelo de lenguaje, pero solo con fragmentos de los manuales oficiales. "
+        "El orden y la compatibilidad los calcula el código."
+    )
+    if st.button("Generar manual", key="generar", type="primary"):
+        generar_y_guardar(config, resultado, plan)
+
+    # Streamlit vuelve a ejecutar esta función con cada cambio de selector: el manual
+    # se guarda en la sesión para no llamar de nuevo al modelo.
+    guardado = st.session_state.get("manual")
+    if not guardado:
+        return
+    if guardado["firma"] != config.model_dump_json():
+        st.info("Cambiaste las piezas desde que se generó este manual. Genera uno nuevo para esta configuración.")
+        return
+
+    manual = guardado["datos"]
+    sin_verificar = manual.manual_markdown.count(TEXTO_NO_VERIFICADO)
+    if sin_verificar:
+        st.warning(
+            f"{sin_verificar} paso(s) no se pudieron respaldar con una cita del manual "
+            "y muestran solo la descripción base."
+        )
+    st.markdown(manual.manual_markdown)
+    with st.expander(f"Fuentes citadas ({len(manual.citas_manuales)})"):
+        if not manual.citas_manuales:
+            st.caption("Ningún paso quedó respaldado por una cita del manual.")
+        for cita in manual.citas_manuales:
+            pagina = cita["pagina_etiqueta"] or cita["pagina"]
+            st.markdown(f"- **{cita['titulo']}**, pág. {pagina} · {cita['seccion']} · pasos: {', '.join(cita['pasos'])}")
 
 def main() -> None:
     st.set_page_config(page_title="PC-Assembly-RAG", layout="wide")
@@ -110,8 +173,11 @@ def main() -> None:
         st.error(f"No se pudo armar la configuración: {error}")
         st.stop()
 
-    if mostrar_compatibilidad(config).compatible:
-        mostrar_pasos(config)
+    resultado = mostrar_compatibilidad(config)
+    if resultado.compatible:
+        plan = generar_plan_ensamble(config)
+        mostrar_pasos(plan)
+        mostrar_manual(config, resultado, plan)
     else:
         st.warning("Corrige los errores para ver el orden de montaje.")
 

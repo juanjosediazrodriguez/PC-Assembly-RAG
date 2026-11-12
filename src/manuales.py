@@ -35,3 +35,8 @@ def manual_por_archivo(nombre_archivo: str, ruta: Path = RUTA_MANUALES) -> tuple
         if datos.get("archivo") == nombre_archivo:
             return manual_id, datos.get("componente_tipo", "general")
     return None
+
+
+def titulo_de_manual(manual_id: str, ruta: Path = RUTA_MANUALES) -> str:
+    """Titulo corto para citar el manual (p. ej. 'Manual ASUS B650'); el manual_id si no tiene."""
+    return cargar_manuales(ruta).get(manual_id, {}).get("titulo", manual_id)
