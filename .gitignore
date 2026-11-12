@@ -21,6 +21,9 @@ htmlcov/
 # Base de datos vectorial persistente (ChromaDB)
 data/vectorstore/
 
+# Fragmentos generados por scripts/ingest_manuals.py (se regeneran con ese comando)
+data/processed/manual_chunks.jsonl
+
 # Archivos pesados de datos crudos (manuales PDF)
 # En escalabilidad o produccion con miles de manuales NO se suben binarios a Git.
 # Para el MVP se habilita como excepcion el manual de referencia oficial:

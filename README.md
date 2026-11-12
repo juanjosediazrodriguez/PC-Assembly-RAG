@@ -174,8 +174,11 @@ cp .env.example .env
 ### Comandos útiles
 ```bash
 uv run python scripts/build_catalog.py   # regenerar data/processed/hardware_catalog.json
+uv run python scripts/ingest_manuals.py  # leer los PDF y generar data/processed/manual_chunks.jsonl (no se versiona)
 uv run pytest tests -q                   # correr las pruebas
 ```
+
+**Antes de usar el buscador** hay que correr la ingesta: sin `manual_chunks.jsonl` la colección de ChromaDB queda vacía y la búsqueda devuelve `[]` sin avisar. Si vuelves a ingerir, borra `data/vectorstore/`: `cargar_chunks_jsonl` no reindexa cuando la colección ya tiene datos. El mapa de qué manual cubre qué pieza está en `data/processed/manuales.json` (se edita a mano, y se consulta con `src/manuales.py`).
 
 Para armar una `ConfiguracionPC` desde el catálogo (interfaz, pruebas de extremo a extremo): `src/catalogo.py`.
 

@@ -22,7 +22,8 @@ data/
 │                             # Para el MVP se incluye el manual de referencia oficial de ASUS (3.2 MB).
 ├── processed/                # Datos limpios y procesados
 │   ├── hardware_catalog.json # Catálogo normalizado (lo genera scripts/build_catalog.py)
-│   └── manual_chunks.jsonl   # Fragmentos de texto extraídos listos para indexación (pendiente)
+│   └── manual_chunks.jsonl   # Fragmentos de los manuales (lo genera scripts/ingest_manuals.py; no se versiona)
+│   └── manuales.json          # Mapa a mano: que manual cubre que pieza del catalogo (se versiona)
 └── vectorstore/              # Base de datos vectorial persistente de ChromaDB (ignorado en Git)
 ```
 
