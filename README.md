@@ -5,6 +5,7 @@
 Proyecto final de **Inteligencia Artificial (SI3003)** · Universidad EAFIT · 2026-2
 
 **Autores:** Juan José Díaz Rodríguez · Alejandro Jaramillo · Felipe Martinez · Jhesid Steven Suarez 
+
 **Fecha:** 13-11-2026
 
 ---
