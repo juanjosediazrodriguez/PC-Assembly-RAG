@@ -43,6 +43,9 @@ PROVEEDORES = {
 
 MAX_PALABRAS_FRAGMENTO = 250  # recorta cada fragmento para acotar los tokens por llamada
 MAX_REINTENTOS = 1
+# Tope de tokens que el modelo puede GENERAR por llamada. Un modelo de razonamiento gasta
+# parte de este cupo "pensando" antes de escribir: si el tope es bajo, la respuesta sale vacia.
+MAX_TOKENS_SALIDA = 2000
 TEXTO_SIN_MANUAL = "Sin manual disponible para esta pieza."
 TEXTO_NO_VERIFICADO = "_No se pudo verificar el detalle del manual para este paso._"
 
@@ -181,7 +184,7 @@ def redactar_paso(
     for _ in range(MAX_REINTENTOS + 1):
         try:
             respuesta = cliente.chat.completions.create(
-                model=modelo, messages=mensajes, temperature=0.2, max_tokens=600
+                model=modelo, messages=mensajes, temperature=0.2, max_tokens=MAX_TOKENS_SALIDA
             )
         except Exception as error:  # red, cuota, clave invalida...
             logger.warning("Fallo la llamada al LLM en el paso %s: %s", paso.id_paso, error)

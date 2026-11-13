@@ -39,3 +39,4 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+data/processed/evaluacion_generador/
