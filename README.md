@@ -4,7 +4,7 @@
 
 Proyecto final de **Inteligencia Artificial (SI3003)** · Universidad EAFIT · 2026-2
 
-**Autores:** Juan José Díaz Rodríguez · [nombre completo] (@Alejossss) · [nombre completo] (@pipesama500) · [nombre completo] (@jsuarezb1808)
+**Autores:** Juan José Díaz Rodríguez · Alejandro Jaramillo · Felipe Martinez · Jhesid Steven Suarez 
 **Fecha:** 13-11-2026
 
 ---
@@ -201,4 +201,16 @@ PC-Assembly-RAG/
 └── AGENTS.md              # reglas de trabajo del equipo
 ```
 
-_Uso de IA generativa: [declaración del equipo]._
+## 8. Uso de IA generativa
+
+**En el producto.** El sistema llama a un modelo de lenguaje (`nvidia/nemotron-3-ultra-550b-a55b`, por la API de NVIDIA) solo para redactar el texto de cada paso a partir de fragmentos del manual. No decide la compatibilidad, no ordena el montaje y no elige qué manual corresponde a cada pieza: eso lo hace el código (sección 4). El texto del modelo se verifica contra los fragmentos recuperados antes de mostrarse.
+
+**En el desarrollo.** El equipo usó asistentes de IA de programación como apoyo para escribir código, pruebas y documentación. Las reglas de uso están en [`AGENTS.md`](AGENTS.md): explicar antes de modificar archivos y esperar confirmación, no versionar claves, trabajar en una rama por issue y no hacer commits directos a `main`. En el historial queda un rastro de ello: la rama del issue #4 incluye un merge hecho por el agente de GitHub Copilot.
+
+| Aspecto | Quién lo decidió o lo hizo |
+|---|---|
+| Arquitectura, contratos de datos (`docs/contratos.md`), reglas de compatibilidad, metas y métricas de la sección 4 | El equipo |
+| Código, pruebas y borradores de documentación | Con asistencia de IA, revisado y ejecutado por el autor de cada módulo |
+| Resultados de la sección 6 | Salen de ejecutar las pruebas y `scripts/evaluar_generador.py`; la IA ayudó a redactar el análisis a partir de esas salidas |
+
+**Cómo se verificó lo que produjo la IA.** Las 59 pruebas automáticas pasan (`pytest`), el banco de Recall@3 se construyó leyendo el PDF y no el buscador, y los datos del generador se compararon contra los fragmentos que recibió el modelo. Las métricas del generador son heurísticas (expresiones regulares) sin revisión humana por línea; por eso la sección 6 las presenta como candidatas a revisar y no como prueba de ausencia de errores.
