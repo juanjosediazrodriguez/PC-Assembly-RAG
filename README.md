@@ -138,16 +138,32 @@ sequenceDiagram
 
 ## 6. Resultados
 
-_Pendiente: se completa con los resultados de #3, #9 y #23. Cada fila usa las mismas métricas y datos de la sección 4._
+Cada fila usa las mismas métricas y datos de la sección 4.
 
 | Módulo | Métrica | Meta | Línea base | Resultado |
 |---|---|---|---|---|
-| Compatibilidad | Exactitud en 20 configuraciones | 100 % | 50 % | _pendiente (#3)_ |
-| Planificador | Órdenes que respetan las precedencias | 100 % | _pendiente_ | _pendiente_ |
-| Recuperación | Recall@3 | ≥ 90 % | _pendiente_ | _pendiente (#9)_ |
-| Generador | Citas válidas / datos inventados | 100 % / 0 | _pendiente_ | _pendiente (#23)_ |
+| Compatibilidad | Exactitud en 20 configuraciones (`tests/test_compatibilidad.py`) | 100 % | 50 % | **20/20 (100 %)** |
+| Planificador | Órdenes que respetan las precedencias (`tests/test_planificador.py`) | 100 % | No medida | **31/31 pruebas pasan** (precedencias y aciclicidad) |
+| Recuperación | Recall@3 por página, 10 preguntas (`tests/test_rag.py`) | ≥ 90 % | Palabras clave: 100 % por página, 80 % por contenido | **100 % por página, 90 % por contenido** |
+| Generador | Citas inválidas / pines, ranuras o cables inventados en pasos sin manual | 0 / 0 | No medida | **0 / 0** en 158 pasos |
 
-**Análisis:** _pendiente: qué funcionó, qué no y limitaciones._
+**Generador: evaluación con el modelo real** (`scripts/evaluar_generador.py`, 10 configuraciones compatibles, `nvidia/nemotron-3-ultra-550b-a55b`, temperatura 0,2, una corrida por configuración, 2026-11-12):
+
+| Medida | Resultado |
+|---|---|
+| Pasos evaluados | 158 (47 con manual, 111 sin manual) |
+| Pasos con manual con cita válida | 74 % |
+| Pasos con manual que terminaron en texto seguro | 26 % (por configuración, de 11 % a 60 %) |
+| Pasos con el texto cortado a mitad de frase | 7 de 47 |
+| Líneas del modelo sin cita | 23 de 115 |
+| Líneas con datos técnicos fuera del fragmento citado | 20 |
+| Líneas con datos técnicos fuera de todo lo que recibió el modelo | 0 |
+| Reintentos por citas inválidas | 30 |
+
+**Análisis:**
+- **Qué funcionó.** El validador y el planificador cumplen sus metas y son deterministas. El buscador encuentra la página correcta en el top 3 en las 10 preguntas. En los 111 pasos sin manual el modelo no se llama y no apareció ningún pin, ranura ni cable inventado. Ninguna página citada es inexistente.
+- **Qué no.** La meta de 0 citas inválidas se cumple en parte por construcción: la verificación descarta las respuestas con citas inventadas. La cifra que mide al modelo es que 1 de cada 4 pasos con manual (26 %) termina en texto seguro, y la configuración 2 (SATA con refrigeración líquida) llegó al 60 %. Con una sola corrida por configuración no sabemos si eso es una anomalía.
+- **Limitaciones.** La verificación comprueba que la página citada exista, no que cada dato esté en el fragmento: los 20 casos señalados son candidatos a revisar a mano. Las métricas del generador se calculan con expresiones regulares y no hay revisión humana. En el buscador, el cambio de consulta (quitar los nombres de pieza) mejoró un caso (de la posición 7 a la 1) pero en el banco de 10 preguntas no cambia el Recall (90 % por contenido con y sin nombres). El banco es pequeño (10 preguntas, un solo manual).
 
 ## 7. Reproducibilidad
 
