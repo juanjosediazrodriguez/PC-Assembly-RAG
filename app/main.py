@@ -4,7 +4,9 @@ Conecta el catálogo, el validador de compatibilidad y el planificador de ensamb
 Pendiente: el manual redactado por el LLM y las citas (issues #8 y #10).
 """
 
+import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -24,6 +26,13 @@ from src.llm.generador import TEXTO_NO_VERIFICADO  # noqa: E402
 from src.pipeline import armar_pasos_con_contexto  # noqa: E402
 from src.rag.buscador import RUTA_CHUNKS_JSONL  # noqa: E402
 from src.planificador.grafo import generar_plan_ensamble  # noqa: E402
+from scripts.ingest_manuals import CARPETA_RAW, procesar_directorio  # noqa: E402
+
+# Despliegue público (LIMITAR_GENERACIONES=1): la clave del modelo es del autor y gratuita,
+# así que se limita cuántos manuales puede generar cada visitante y la demo completa por día.
+MAX_POR_SESION = 2
+MAX_POR_DIA = 30
+RUTA_MANUAL_EJEMPLO = RAIZ / "docs" / "demo" / "manual_ejemplo.md"
 
 ETIQUETAS = {
     "cpu": "Procesador", "motherboard": "Placa madre", "gpu": "Tarjeta gráfica",
@@ -97,18 +106,74 @@ def mostrar_pasos(plan: list[PasoEnsamble]) -> None:
             st.caption(f"Después de: {previas}")
 
 
+@st.cache_resource(show_spinner="Preparando el índice del manual (solo la primera vez)...")
+def asegurar_ingesta() -> None:
+    """En un servidor limpio manual_chunks.jsonl no existe (no está en Git): se genera desde el PDF."""
+    if not RUTA_CHUNKS_JSONL.exists():
+        procesar_directorio(CARPETA_RAW)
+
+
+@st.cache_resource
+def contador_global() -> dict:
+    """Manuales generados hoy por todos los visitantes. Se reinicia si el servidor se reinicia."""
+    return {"dia": date.today(), "n": 0}
+
+
+def limites_activos() -> bool:
+    return os.getenv("LIMITAR_GENERACIONES", "") == "1"
+
+
+def hay_cupo() -> tuple[bool, str]:
+    """(puede generar, motivo si no puede). Solo aplica en el despliegue público."""
+    if not limites_activos():
+        return True, ""
+    global_ = contador_global()
+    if global_["dia"] != date.today():
+        global_["dia"], global_["n"] = date.today(), 0
+    if st.session_state.get("n_generaciones", 0) >= MAX_POR_SESION:
+        return False, f"Ya generaste {MAX_POR_SESION} manuales en esta sesión."
+    if global_["n"] >= MAX_POR_DIA:
+        return False, "La demo alcanzó su cupo diario de manuales."
+    return True, ""
+
+
+def registrar_generacion() -> None:
+    st.session_state["n_generaciones"] = st.session_state.get("n_generaciones", 0) + 1
+    contador_global()["n"] += 1
+
+
+def mostrar_ejemplo(motivo: str) -> None:
+    """Respaldo del despliegue público: un manual real ya generado, sin llamar al modelo."""
+    st.info(
+        f"{motivo} Te muestro un manual de ejemplo ya generado con el modelo real para la "
+        "configuración precargada (Ryzen 5 7600X + ASUS TUF B650). Es una salida sin editar: "
+        "puede traer pasos cortados o marcados como no verificados."
+    )
+    if RUTA_MANUAL_EJEMPLO.exists():
+        st.markdown(RUTA_MANUAL_EJEMPLO.read_text(encoding="utf-8"))
+
+
 def generar_y_guardar(
     config: ConfiguracionPC, resultado: ResultadoCompatibilidad, plan: list[PasoEnsamble]
 ) -> None:
     """Llama al modelo (tarda decenas de segundos) y guarda el manual en la sesión."""
+    puede, motivo = hay_cupo()
+    if not puede:
+        mostrar_ejemplo(motivo)
+        return
+    asegurar_ingesta()
     if not RUTA_CHUNKS_JSONL.exists():
         st.error("Falta la ingesta de los manuales. Corre: python scripts/ingest_manuals.py (con el entorno .venv activo)")
         return
     try:
         cliente, modelo = cargar_cliente()
     except (RuntimeError, ValueError) as error:
-        st.error(f"No se puede usar el modelo: {error}")
+        if limites_activos():
+            mostrar_ejemplo("El modelo no está disponible en este momento.")
+        else:
+            st.error(f"No se puede usar el modelo: {error}")
         return
+    registrar_generacion()
 
     barra = st.progress(0.0, text="Buscando en los manuales...")
     pasos_con_contexto = armar_pasos_con_contexto(plan)
