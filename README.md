@@ -8,6 +8,19 @@ Proyecto final de **Inteligencia Artificial (SI3003)** · Universidad EAFIT · 2
 
 **Fecha:** 13-11-2026
 
+**Demo en vivo:** https://pc-assembly-rag-fuhfesbfwxmhzw78ipeappl.streamlit.app/
+
+La validación de compatibilidad y el orden de montaje responden al instante. El botón *Generar manual* usa un modelo de lenguaje con una cuota gratuita compartida: cada visitante puede generar 2 manuales y la demo completa 30 por día. Superado el límite, o si el modelo no responde, la app muestra un manual de ejemplo ya generado.
+
+| Módulo | Autor | Responsabilidad |
+|---|---|---|
+| 1 | Felipe Martinez (@pipesama500) | Catálogo de piezas y validador de compatibilidad |
+| 2 | Alejandro Jaramillo (@Alejossss) | Planificador con grafos |
+| 3 | Jhesid Steven Suarez (@jsuarezb1808) | Ingesta de PDFs y búsqueda en ChromaDB |
+| 4 | Juan José Díaz Rodríguez | Generador con LLM, interfaz, arquitectura y evaluación |
+
+**Licencia:** el código se distribuye bajo licencia [MIT](LICENSE). Los datos (catálogo de Kaggle y manual de ASUS) no entran en esa licencia: tienen sus propias condiciones, descritas en la sección 3.
+
 ---
 
 ## 1. Introducción

@@ -40,7 +40,7 @@ Instrucciones y reglas de ingeniería para los asistentes de IA y desarrolladore
 | **Parte 1 (IA Clásica)** | `networkx` / Algoritmos en Python | Grafo de dependencias y ordenación topológica para la secuencia de montaje; motor de reglas de compatibilidad. |
 | **Base de datos vectorial** | `ChromaDB` (modo local persistente) | Indexación y búsqueda semántica de fragmentos de manuales con embeddings integrados (`all-MiniLM-L6-v2`). |
 | **Extracción de texto** | `pypdf` | Lectura y parsing de manuales técnicos en PDF. |
-| **Generación (LLM)** | API de NVIDIA / Groq (Llama 3.3 70B) | Redacción del manual paso a paso con prompt estructurado. |
+| **Generación (LLM)** | API de NVIDIA (`nvidia/nemotron-3-ultra-550b-a55b`) o Groq (Llama 3.3 70B), configurable en `.env` | Redacción del manual paso a paso con prompt estructurado. |
 | **Interfaz** | `Streamlit` | Interfaz web interactiva para seleccionar componentes y visualizar el manual generado. |
 | **Pruebas** | `pytest` | Pruebas unitarias de compatibilidad, grafos de ensamble y búsqueda RAG. |
 
