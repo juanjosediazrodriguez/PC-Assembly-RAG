@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+.pytest_cache
+__pycache__
+*.pyc
+data/vectorstore
+data/processed/evaluacion_generador
+data/processed/manual_chunks.jsonl
