@@ -1,0 +1,23 @@
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Instalar dependencias (versiones exactas de uv.lock)
+        run: uv sync --frozen --extra dev
+
+      # La prueba con el modelo real se salta sola: no hay clave en CI.
+      - name: Correr pruebas
+        run: uv run --no-sync pytest tests -q
+        env:
+          ANONYMIZED_TELEMETRY: "False"
